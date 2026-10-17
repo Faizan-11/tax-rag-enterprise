@@ -158,7 +158,7 @@ Semantic Answer Scoring — replace keyword matching in the eval with cosine sim
 
 Scale test — replicate the pipeline on the entire Indian Constitution.
 
-# Project Structure
+## Project Structure
 tax-rag-enterprise/
 ├── app/
 │   └── streamlit_app.py          # Deployed web UI
