@@ -177,9 +177,11 @@ tax-rag-enterprise/
 ├── config.py                     # Central configuration
 ├── requirements.txt
 └── .gitignore
-
+```
 
 # License
-MIT — see LICENSE.
+MIT — see [LICENSE](LICENSE).
+
+---
 
 Built as a portfolio project demonstrating advanced RAG engineering: Hybrid Search, Query Rewriting, Cross-Encoder Reranking, and Cloud Fallback strategies.
