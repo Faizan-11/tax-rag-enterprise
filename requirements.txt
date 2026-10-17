@@ -1,0 +1,8 @@
+streamlit
+openai
+sentence-transformers
+qdrant-client
+rank_bm25
+flashrank
+numpy
+python-dotenv
