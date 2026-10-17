@@ -127,4 +127,4 @@ tax-rag-enterprise/
 │   └── eval/                     # Test sets & Results
 ├── config.py                     # Central configuration
 ├── requirements.txt
-└── README.md
+└── .gitignore
