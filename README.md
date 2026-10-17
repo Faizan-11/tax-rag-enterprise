@@ -7,6 +7,19 @@ A **Tier-1 Enterprise Retrieval-Augmented Generation (RAG)** system that answers
 
 ---
 
+## What It Does
+
+Ask a natural-language question like *"How can I save tax on my health insurance premium?"* and the system:
+
+1. **Rewrites** your question into formal legal terminology.
+2. **Retrieves** the top 20 chunks using Hybrid Search (Dense Vectors + BM25 Keyword).
+3. **Reranks** the 20 chunks down to the best 5 using a Cross-Encoder.
+4. **Generates** a grounded answer with page citations using GPT-4o-mini.
+
+**Try it yourself:** [Live demo link](https://tax-rag-enterprise-9rken74ackbzkk7yryk7g7.streamlit.app/)
+
+---
+
 ## 🚀 The Evolution (Level 1 to Level 2)
 
 This project is the direct successor to my first RAG project (IITB College Rules). It represents a jump from a **basic semantic search pipeline** to a **production-grade enterprise architecture**:
@@ -21,7 +34,7 @@ This project is the direct successor to my first RAG project (IITB College Rules
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```text
                        ┌─────────────────────────────┐
@@ -55,61 +68,97 @@ This project is the direct successor to my first RAG project (IITB College Rules
                        │   GPT-4o-mini Generation    │
                        │   (Grounded + Cited)        │
                        └─────────────────────────────┘
+### Pipeline Stages
 
+| Stage | Script | What it does |
+|---|---|---|
+| **1** | `01_extract.py` | Extract 1.7M chars from PDF (PyMuPDF) |
+| **2** | `02_chunk.py` | Split massive paragraphs into ~500-token chunks (tiktoken) |
+| **3** | `03_embed.py` | Generate 384-dim embeddings (BAAI/bge-small-en-v1.5) |
+| **4** | `04_index.py` | Index chunks in Qdrant DB + build BM25 keyword index |
+| **5** | `05_query.py` | Query pipeline: Rewrite → Hybrid Search → Rerank → Generate |
+| **6** | `06_eval.py` | Evaluation harness with LLM-as-judge |
 
+---
 
+## Evaluation Results
 
-⚙️ Pipeline Stages
-The code is modularized into 6 distinct stages. Here is how the data flows from PDF to answer:
+Evaluated on a hand-labeled test set of **25 adversarial questions** drawn from the rulebook.
 
-Stage	Script	Description
-1. Extract	scripts/01_extract.py	Uses PyMuPDF to extract 1.7M characters, saving page numbers and text into structured JSON.
-2. Chunk	scripts/02_chunk.py	Splits massive legal paragraphs at sentence boundaries to enforce a ~500 token limit, preventing context overflow.
-3. Embed	scripts/03_embed.py	Generates 384-dimensional semantic vectors for 1,262 chunks using BGE-small.
-4. Index	scripts/04_index.py	Creates a dual-index: Uploads vectors to Qdrant (Docker) and builds a BM25 keyword index (pickled).
-5. Query	scripts/05_query.py	The pipeline: Query Rewrite → Hybrid Retrieve → Rerank → Generate.
-6. Evaluate	scripts/06_eval.py	The eval harness. Runs 25 adversarial questions and scores Faithfulness, Relevancy, and Retrieval Accuracy.
+| Metric | Score |
+|---|---|
+| **Faithfulness** | **0.77** (answer grounded in source) |
+| **Relevancy** | **0.96** (answer addresses the question) |
+| **Trick Question Refusal** | **100%** (correctly refused out-of-scope questions) |
 
+### Known Limitations (Document Versioning)
 
-🧠 Key Engineering Decisions
-Hybrid Search (BM25 + Vectors): Pure vector search fails on exact legal citations (e.g., "Section 80C"). By combining BM25 keyword search with dense vector search, the system catches both conceptual queries and exact section lookups.
+Real engineering comes with honesty. Here's what this system *doesn't* do well yet:
 
-Query Rewriting: Users ask questions like "How do I save tax on health insurance?" The LLM rewrites this into formal legal terminology before searching the database.
+The source PDF is the **Income Tax Act of 2025**. The Government of India completely renumbered the sections in this new Act. If a user asks for an old section (e.g., "What is Section 80C?"), the Query Rewriter guesses the user means the 1961 Act, but the retriever correctly refuses because 80C does not exist in the 2025 document. **This demonstrates the system's strict guardrails against hallucination.**
 
-Cross-Encoder Reranking: We retrieve the top 20 chunks, but use a FlashRank Cross-Encoder to score them and pass only the absolute best 5 to the final LLM prompt. This reduces hallucinations and saves tokens.
+---
 
-In-Memory Cloud Fallback: To deploy on Streamlit Community Cloud (which lacks Docker), the app detects the absence of Qdrant and seamlessly switches to a normalized in-memory numpy matrix for vector search.
+## Tech Stack
 
-📊 Evaluation & Honest Limitations
-We evaluated the system against a 25-question hand-labeled test set (factual, numerical, conceptual, and adversarial).
+| Layer | Tool |
+|---|---|
+| **PDF extraction** | PyMuPDF |
+| **Tokenization** | tiktoken |
+| **Embeddings** | BAAI/bge-small-en-v1.5 (Sentence Transformers) |
+| **Vector DB** | Qdrant (Docker) |
+| **Keyword Search** | rank_bm25 |
+| **Reranker** | FlashRank (`ms-marco-MiniLM-L-12-v2`) |
+| **LLM** | OpenAI GPT-4o-mini |
+| **Web UI** | Streamlit |
+| **Deployment** | Streamlit Community Cloud |
+| **Language** | Python 3.11 |
 
-Faithfulness: 0.77
+---
 
-Relevancy: 0.96
+## Running Locally
 
-Trick Question Refusal Rate: 100% (correctly refused to answer questions about cake, GST, and the 1961 Act).
+### Prerequisites
+- Python 3.11
+- Docker (for Qdrant)
+- OpenAI API key
 
+### Setup
 
-⚠️ Known Limitations (Document Versioning)
-The source PDF is the Income Tax Act of 2025. The Government of India completely renumbered the sections in this new Act.
-If a user asks for an old section (e.g., "What is Section 80C?"), the Query Rewriter guesses the user means the 1961 Act, but the retriever correctly refuses because 80C does not exist in the 2025 document. This demonstrates the system's strict guardrails against hallucination.
+```bash
+git clone https://github.com/Faizan-11/tax-rag-enterprise.git
+cd tax-rag-enterprise
 
+# Create virtual environment
+python3.11 -m venv venv
+source venv/bin/activate
 
-🛠️ Tech Stack
-Layer	Tool
-PDF Extraction	PyMuPDF
-Tokenization & Chunking	tiktoken
-Embeddings	BAAI/bge-small-en-v1.5 (Sentence Transformers)
-Vector DB	Qdrant (Docker)
-Keyword Search	rank_bm25
-Reranker	FlashRank (ms-marco-MiniLM-L-12-v2)
-LLM	OpenAI GPT-4o-mini
-Web UI	Streamlit
-Deployment	Streamlit Community Cloud
+# Install dependencies
+pip install -r requirements.txt
 
+# Start Qdrant
+docker run -d --name qdrant -p 6333:6333 -p 6334:6334 \
+  -v "$(pwd)/qdrant_storage:/qdrant/storage" qdrant/qdrant:latest
 
-📂 Project Structure
+# Set up secrets
+echo "OPENAI_API_KEY=sk-your-key-here" > .env
 
+# Run the Streamlit app
+streamlit run app/streamlit_app.py
+
+# Run the evaluation harness
+python scripts/06_eval.py
+
+# What I'd Improve Next
+Better Legal-Aware Chunking — use a parser that understands "Section 1", "Sub-section 2", etc., rather than just token counts.
+
+Multi-Query Expansion — generate 3 variations of the user's question and search for all of them.
+
+Semantic Answer Scoring — replace keyword matching in the eval with cosine similarity.
+
+Scale test — replicate the pipeline on the entire Indian Constitution.
+
+# Project Structure
 tax-rag-enterprise/
 ├── app/
 │   └── streamlit_app.py          # Deployed web UI
@@ -128,3 +177,9 @@ tax-rag-enterprise/
 ├── config.py                     # Central configuration
 ├── requirements.txt
 └── .gitignore
+
+
+# License
+MIT — see LICENSE.
+
+Built as a portfolio project demonstrating advanced RAG engineering: Hybrid Search, Query Rewriting, Cross-Encoder Reranking, and Cloud Fallback strategies.
